@@ -2,21 +2,29 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+The app and its Postgres database run in Docker, in development too. You need Docker and a `.env`:
+
+```bash
+cp .env.template .env
+```
+
+Then start the development server (Next.js dev server + Postgres, with hot reload):
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result. Edits under `app/`, `components/` and `lib/` reload automatically. Stop with Ctrl+C, or remove the containers with `npm run dev:down`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+After changing dependencies, run `npm install` and then `npm run dev` again: it rebuilds the image and refreshes the container's `node_modules`.
+
+To run the production build instead:
+
+```bash
+docker compose up --build
+```
+
+Database settings (`DB_*`, including `DB_SCHEMA`) come from `.env`. The schema is created the first time the database volume is initialised; `docker compose down -v` resets it, deleting all data.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
