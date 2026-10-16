@@ -45,6 +45,9 @@ Sign-up creates the user, a personal organization and an owner membership in one
 - In components, call `getCurrentUser()` from `lib/auth.ts` behind a `<Suspense>` boundary. It returns the user and their active organization, or redirects to `/login`.
 - In server actions, authorize with `readSession()` from `lib/session.ts`.
 - `proxy.ts` only checks that the cookie exists, sending visitors without one to `/login`.
+- For what the user may do in their active organization, call `readActiveMember()` from `lib/membership.ts` and check `permissions.has("members.invite")` and the like.
+
+Members are managed at `/members`: invite by email with a role, change roles, remove members or leave. An organization always keeps at least one owner. Invitation links (`/invite/<token>`) work once and expire after 7 days. Emails aren't sent yet: `lib/mailer.ts` writes them to the server log (`docker compose logs web`) until you connect a provider. The sidebar's organization menu switches the active organization or creates a new one.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
