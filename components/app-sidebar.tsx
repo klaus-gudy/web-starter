@@ -23,9 +23,12 @@ const navItems = [
 ]
 
 export function AppSidebar({
+  header,
   footer,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
+  /** Server-rendered organization switcher; see OrgSwitcher. */
+  header?: React.ReactNode
   /** Server-rendered user menu; see NavUser. */
   footer?: React.ReactNode
 }) {
@@ -33,20 +36,7 @@ export function AppSidebar({
 
   return (
     <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild>
-              <Link href="/dashboard">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground font-semibold">
-                  W
-                </div>
-                <span className="truncate font-semibold">Web Starter</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
+      <SidebarHeader>{header}</SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Application</SidebarGroupLabel>
