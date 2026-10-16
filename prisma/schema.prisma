@@ -1,11 +1,180 @@
-// Prisma schema. Models are added in later migrations; the connection URL is
-// built from the DB_* variables in prisma.config.ts.
+// Prisma schema. The connection URL is built from the DB_* variables in
+// prisma.config.ts. Tables and columns are snake_case in the database so raw
+// SQL through query() reads naturally; Prisma maps them to camelCase.
+//
+// Tenancy: an organization is the tenant. Users are global and join
+// organizations through memberships. Tables for a feature you build belong to
+// one organization: give them an organizationId with onDelete: Cascade.
 
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../lib/generated/prisma"
+  previewFeatures = ["partialIndexes", "postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
+  extensions = [citext]
+}
+
+// ---------------------------------------------------------------------------
+// Identity (global, not owned by an organization)
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email           String    @unique @db.Citext
+  emailVerifiedAt DateTime? @map("email_verified_at") @db.Timestamptz
+  name            String?
+  avatarUrl       String?   @map("avatar_url")
+  // Staff of the platform itself, not of any one organization.
+  isPlatformAdmin Boolean   @default(false) @map("is_platform_admin")
+  lastSignInAt    DateTime? @map("last_sign_in_at") @db.Timestamptz
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
+
+  memberships          Membership[]   @relation("MembershipUser")
+  membershipsInvited   Membership[]   @relation("MembershipInvitedBy")
+  organizationsCreated Organization[]
+  invitationsSent      Invitation[]   @relation("InvitationInvitedBy")
+  invitationsAccepted  Invitation[]   @relation("InvitationAcceptedBy")
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String    @unique
+  name        String
+  logoUrl     String?   @map("logo_url")
+  // The workspace every user gets at sign-up; it has a single member.
+  isPersonal  Boolean   @default(false) @map("is_personal")
+  settings    Json      @default("{}")
+  createdById String?   @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt   DateTime? @map("deleted_at") @db.Timestamptz
+
+  createdBy   User?        @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  roles       Role[]
+  memberships Membership[]
+  invitations Invitation[]
+
+  @@map("organizations")
+}
+
+// What a role may do, as dotted keys: "members.invite", "billing.manage".
+// Features you build add their own keys ("projects.create") in a migration.
+model Permission {
+  key         String  @id
+  description String?
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+// System roles (owner, admin, member, viewer) have no organization and are
+// shared by all; an organization can add custom roles of its own.
+model Role {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  key            String
+  name           String
+  description    String?
+  isSystem       Boolean  @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization?    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  permissions  RolePermission[]
+  memberships  Membership[]
+  invitations  Invitation[]
+
+  @@unique([organizationId, key])
+  // NULLs are distinct in the unique above, so system role keys need their own.
+  @@unique([key], map: "roles_system_key_key", where: raw("organization_id IS NULL"))
+  @@map("roles")
+}
+
+model RolePermission {
+  roleId        String @map("role_id") @db.Uuid
+  permissionKey String @map("permission_key")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionKey], references: [key], onDelete: Cascade)
+
+  @@id([roleId, permissionKey])
+  @@map("role_permissions")
+}
+
+enum MembershipStatus {
+  active
+  suspended
+
+  @@map("membership_status")
+}
+
+model Membership {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  roleId         String           @map("role_id") @db.Uuid
+  status         MembershipStatus @default(active)
+  invitedById    String?          @map("invited_by_id") @db.Uuid
+  joinedAt       DateTime         @default(now()) @map("joined_at") @db.Timestamptz
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation("MembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+  // NoAction, not Restrict: checked at the end of the statement, so deleting an
+  // organization can cascade through its custom roles and memberships together.
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: NoAction)
+  invitedBy    User?        @relation("MembershipInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("memberships")
+}
+
+enum InvitationStatus {
+  pending
+  accepted
+  revoked
+  expired
+
+  @@map("invitation_status")
+}
+
+model Invitation {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  email          String           @db.Citext
+  roleId         String           @map("role_id") @db.Uuid
+  // SHA-256 of the token in the invite link; the token itself is never stored.
+  tokenHash      String           @unique @map("token_hash")
+  status         InvitationStatus @default(pending)
+  invitedById    String?          @map("invited_by_id") @db.Uuid
+  expiresAt      DateTime         @map("expires_at") @db.Timestamptz
+  acceptedAt     DateTime?        @map("accepted_at") @db.Timestamptz
+  acceptedById   String?          @map("accepted_by_id") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: NoAction)
+  invitedBy    User?        @relation("InvitationInvitedBy", fields: [invitedById], references: [id], onDelete: SetNull)
+  acceptedBy   User?        @relation("InvitationAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  // At most one open invitation per address per organization.
+  @@unique([organizationId, email], map: "invitations_pending_email_key", where: raw("status = 'pending'"))
+  @@index([email])
+  @@index([roleId])
+  @@map("invitations")
 }
