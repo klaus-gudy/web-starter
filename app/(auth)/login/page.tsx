@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { login } from "../actions";
+import { NextField } from "@/components/next-field";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,6 +34,9 @@ export default function LoginPage() {
       </CardHeader>
       <CardContent>
         <form action={login}>
+          <Suspense>
+            <NextField />
+          </Suspense>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="email">Email</FieldLabel>
