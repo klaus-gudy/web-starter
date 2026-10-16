@@ -34,13 +34,82 @@ model User {
   updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
   deletedAt       DateTime? @map("deleted_at") @db.Timestamptz
 
-  memberships          Membership[]   @relation("MembershipUser")
-  membershipsInvited   Membership[]   @relation("MembershipInvitedBy")
+  memberships          Membership[]        @relation("MembershipUser")
+  membershipsInvited   Membership[]        @relation("MembershipInvitedBy")
   organizationsCreated Organization[]
-  invitationsSent      Invitation[]   @relation("InvitationInvitedBy")
-  invitationsAccepted  Invitation[]   @relation("InvitationAcceptedBy")
+  invitationsSent      Invitation[]        @relation("InvitationInvitedBy")
+  invitationsAccepted  Invitation[]        @relation("InvitationAcceptedBy")
+  authAccounts         AuthAccount[]
+  sessions             Session[]
+  verificationTokens   VerificationToken[]
 
   @@map("users")
+}
+
+// How a user signs in. One row per method: "password" (providerAccountId is
+// the user id) or an OAuth provider such as "google" (their account id).
+model AuthAccount {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  provider          String
+  providerAccountId String   @map("provider_account_id")
+  // scrypt hash, only for the "password" provider.
+  passwordHash      String?  @map("password_hash")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+// A signed-in browser. The cookie holds a random token; only its SHA-256
+// hash is stored, so a leaked table can't be used to sign in.
+model Session {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tokenHash            String   @unique @map("token_hash")
+  userId               String   @map("user_id") @db.Uuid
+  // The organization the user is working in; every tenant query scopes to it.
+  activeOrganizationId String?  @map("active_organization_id") @db.Uuid
+  ipAddress            String?  @map("ip_address")
+  userAgent            String?  @map("user_agent")
+  expiresAt            DateTime @map("expires_at") @db.Timestamptz
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeOrganization Organization? @relation(fields: [activeOrganizationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([activeOrganizationId])
+  @@map("sessions")
+}
+
+enum VerificationPurpose {
+  verify_email
+  reset_password
+  magic_link
+
+  @@map("verification_purpose")
+}
+
+// Single-use tokens sent by email. Only the SHA-256 hash is stored.
+model VerificationToken {
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purpose    VerificationPurpose
+  email      String              @db.Citext
+  userId     String?             @map("user_id") @db.Uuid
+  tokenHash  String              @unique @map("token_hash")
+  expiresAt  DateTime            @map("expires_at") @db.Timestamptz
+  consumedAt DateTime?           @map("consumed_at") @db.Timestamptz
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, purpose])
+  @@index([userId])
+  @@map("verification_tokens")
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +133,7 @@ model Organization {
   roles       Role[]
   memberships Membership[]
   invitations Invitation[]
+  sessions    Session[]
 
   @@map("organizations")
 }
