@@ -23,20 +23,34 @@ async function fail(path: string, message: string): Promise<never> {
   redirect(path);
 }
 
+// Where to go after signing in: a path inside this app, from the form's
+// "next" field (set when an invitation link sent someone to log in).
+function nextPath(formData: FormData) {
+  const next = field(formData, "next");
+  return next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : null;
+}
+
+// Back to the form, keeping where to go after signing in.
+function formPath(path: string, next: string | null) {
+  return next ? `${path}?next=${encodeURIComponent(next)}` : path;
+}
+
 export async function signUp(formData: FormData) {
   const name = field(formData, "name").slice(0, 100);
   const email = field(formData, "email").toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const next = nextPath(formData);
+  const back = formPath("/sign-up", next);
 
-  if (!name) return fail("/sign-up", "Enter your name.");
-  if (!EMAIL.test(email)) return fail("/sign-up", "Enter a valid email address.");
+  if (!name) return fail(back, "Enter your name.");
+  if (!EMAIL.test(email)) return fail(back, "Enter a valid email address.");
   if (password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
-    return fail("/sign-up", `Use a password of at least ${MIN_PASSWORD} characters.`);
+    return fail(back, `Use a password of at least ${MIN_PASSWORD} characters.`);
   }
 
   const prisma = getPrisma();
   if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
-    return fail("/sign-up", "An account with this email already exists. Log in instead.");
+    return fail(back, "An account with this email already exists. Log in instead.");
   }
 
   const passwordHash = await hashPassword(password);
@@ -62,19 +76,21 @@ export async function signUp(formData: FormData) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return null;
     throw error;
   });
-  if (!created) return fail("/sign-up", "An account with this email already exists. Log in instead.");
+  if (!created) return fail(back, "An account with this email already exists. Log in instead.");
 
   await createSession(created.userId, created.organizationId);
   await setFlash({ type: "success", message: "Welcome! Your workspace is ready." });
-  redirect("/dashboard");
+  redirect(next ?? "/dashboard");
 }
 
 export async function login(formData: FormData) {
   const email = field(formData, "email").toLowerCase();
   const password = String(formData.get("password") ?? "").slice(0, MAX_PASSWORD);
   const invalid = "Incorrect email or password.";
+  const next = nextPath(formData);
+  const back = formPath("/login", next);
 
-  if (!email || !password) return fail("/login", invalid);
+  if (!email || !password) return fail(back, invalid);
 
   const prisma = getPrisma();
   const user = await prisma.user.findUnique({
@@ -89,7 +105,7 @@ export async function login(formData: FormData) {
   const valid = passwordHash
     ? await verifyPassword(password, passwordHash)
     : await verifyNothing(password);
-  if (!user || !valid) return fail("/login", invalid);
+  if (!user || !valid) return fail(back, invalid);
 
   // Resume in the personal workspace, else the oldest organization they're in.
   const membership = await prisma.membership.findFirst({
@@ -100,7 +116,7 @@ export async function login(formData: FormData) {
 
   await prisma.user.update({ where: { id: user.id }, data: { lastSignInAt: new Date() } });
   await createSession(user.id, membership?.organizationId ?? null);
-  redirect("/dashboard");
+  redirect(next ?? "/dashboard");
 }
 
 export async function signOut() {
