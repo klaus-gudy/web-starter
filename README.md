@@ -38,6 +38,14 @@ npm run db:studio     # browse data at http://localhost:5555
 
 These run on your machine against the database container, so start it first (`npm run dev`, or `docker compose up -d db`). The dev container regenerates the client every time it starts.
 
+## Authentication and tenancy
+
+Sign-up creates the user, a personal organization and an owner membership in one transaction, then signs them in. Sessions live in the `sessions` table; the `session` cookie holds a random token whose SHA-256 hash is stored, and passwords are hashed with scrypt (`lib/password.ts`).
+
+- In components, call `getCurrentUser()` from `lib/auth.ts` behind a `<Suspense>` boundary. It returns the user and their active organization, or redirects to `/login`.
+- In server actions, authorize with `readSession()` from `lib/session.ts`.
+- `proxy.ts` only checks that the cookie exists, sending visitors without one to `/login`.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
