@@ -1,9 +1,9 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
 import { redirect } from "next/navigation";
 
 import { Prisma } from "@/lib/generated/prisma/client";
+import { createOrganizationWithOwner } from "@/lib/organizations";
 import { hashPassword, verifyNothing, verifyPassword } from "@/lib/password";
 import { getPrisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
@@ -21,18 +21,6 @@ function field(formData: FormData, name: string) {
 async function fail(path: string, message: string): Promise<never> {
   await setFlash({ type: "error", message });
   redirect(path);
-}
-
-// "Jane Doe" -> "jane-doe-3f9a1c": readable, and the suffix keeps it unique.
-function personalSlug(name: string) {
-  const base = name
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);
-  return `${base || "workspace"}-${randomBytes(3).toString("hex")}`;
 }
 
 export async function signUp(formData: FormData) {
@@ -56,10 +44,6 @@ export async function signUp(formData: FormData) {
   // The user, their sign-in method and their personal workspace (with them
   // as owner) are created together or not at all.
   const created = await prisma.$transaction(async (tx) => {
-    const owner = await tx.role.findFirstOrThrow({
-      where: { organizationId: null, key: "owner" },
-      select: { id: true },
-    });
     const user = await tx.user.create({
       data: { email, name, lastSignInAt: new Date() },
       select: { id: true },
@@ -67,17 +51,10 @@ export async function signUp(formData: FormData) {
     await tx.authAccount.create({
       data: { userId: user.id, provider: "password", providerAccountId: user.id, passwordHash },
     });
-    const organization = await tx.organization.create({
-      data: {
-        name: `${name.split(/\s+/)[0]}'s workspace`,
-        slug: personalSlug(name),
-        isPersonal: true,
-        createdById: user.id,
-      },
-      select: { id: true },
-    });
-    await tx.membership.create({
-      data: { organizationId: organization.id, userId: user.id, roleId: owner.id },
+    const organization = await createOrganizationWithOwner(tx, {
+      name: `${name.split(/\s+/)[0]}'s workspace`,
+      userId: user.id,
+      isPersonal: true,
     });
     return { userId: user.id, organizationId: organization.id };
   }).catch((error: unknown) => {
