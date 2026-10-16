@@ -26,6 +26,18 @@ docker compose up --build
 
 Database settings (`DB_*`, including `DB_SCHEMA`) come from `.env`. The schema is created the first time the database volume is initialised; `docker compose down -v` resets it, deleting all data.
 
+## Database with Prisma
+
+Prisma connects with the same `DB_*` variables from `.env` (see `prisma.config.ts`), so there is no separate `DATABASE_URL`. Models go in `prisma/schema.prisma`; the app uses them through `getPrisma()` from `lib/prisma.ts`, which runs on the same `pg` pool as `query()`.
+
+```bash
+npm run db:migrate    # create and apply a migration after editing the schema
+npm run db:generate   # regenerate the client into lib/generated/prisma
+npm run db:studio     # browse data at http://localhost:5555
+```
+
+These run on your machine against the database container, so start it first (`npm run dev`, or `docker compose up -d db`). The dev container regenerates the client every time it starts.
+
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
 ## Learn More
