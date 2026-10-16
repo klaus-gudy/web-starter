@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server"
 // Kept free of app imports so it stays light; the name matches SESSION_COOKIE
 // in lib/session.ts.
 
-const PUBLIC_PATHS = ["/login", "/sign-up"]
+const PUBLIC_PATHS = ["/login", "/sign-up", "/invite"]
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
