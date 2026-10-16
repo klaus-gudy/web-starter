@@ -1,4 +1,6 @@
+import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
+import { NavUser, NavUserSkeleton } from "@/components/nav-user";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -10,7 +12,15 @@ import {
 export default function CoreLayout({ children }: LayoutProps<"/">) {
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar
+        footer={
+          // Also the guard for every page in this group: NavUser redirects to
+          // /login when the session is missing or no longer valid.
+          <Suspense fallback={<NavUserSkeleton />}>
+            <NavUser />
+          </Suspense>
+        }
+      />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
