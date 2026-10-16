@@ -12,7 +12,8 @@ RUN npm ci
 FROM deps AS dev
 ENV NODE_ENV=development
 EXPOSE 3000
-CMD ["node_modules/.bin/next", "dev", "-H", "0.0.0.0", "-p", "3000"]
+# Generate the Prisma client into the bind-mounted source before starting.
+CMD ["sh", "-c", "node_modules/.bin/prisma generate && exec node_modules/.bin/next dev -H 0.0.0.0 -p 3000"]
 
 # Build the app
 FROM base AS builder
@@ -20,7 +21,7 @@ ARG NEXT_PUBLIC_APP_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN node_modules/.bin/prisma generate && npm run build
 
 # Production image
 FROM base AS runner
