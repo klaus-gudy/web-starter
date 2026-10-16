@@ -1,7 +1,7 @@
-import { createHash, randomBytes } from "node:crypto"
 import { cookies, headers } from "next/headers"
 
 import { getPrisma } from "@/lib/prisma"
+import { createToken, hashToken } from "@/lib/tokens"
 
 // Database sessions. The browser holds a random token in an httpOnly cookie;
 // the sessions table holds its SHA-256 hash, so signing out anywhere (or
@@ -10,18 +10,14 @@ import { getPrisma } from "@/lib/prisma"
 export const SESSION_COOKIE = "session"
 const SESSION_DAYS = 30
 
-function hashToken(token: string) {
-  return createHash("sha256").update(token).digest("hex")
-}
-
 export async function createSession(userId: string, activeOrganizationId: string | null) {
-  const token = randomBytes(32).toString("base64url")
+  const { token, tokenHash } = createToken()
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000)
   const requestHeaders = await headers()
 
   await getPrisma().session.create({
     data: {
-      tokenHash: hashToken(token),
+      tokenHash,
       userId,
       activeOrganizationId,
       ipAddress: requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
