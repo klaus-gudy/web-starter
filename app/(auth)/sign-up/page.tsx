@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { signUp } from "../actions";
+import { NextField } from "@/components/next-field";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -30,6 +32,9 @@ export default function SignUpPage() {
       </CardHeader>
       <CardContent>
         <form action={signUp}>
+          <Suspense>
+            <NextField />
+          </Suspense>
           <FieldGroup>
             <Field>
               <FieldLabel htmlFor="name">Name</FieldLabel>
