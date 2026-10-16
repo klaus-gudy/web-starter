@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import { Suspense } from "react";
 import { FlashToaster } from "@/components/flash-toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -38,7 +39,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         >
           <TooltipProvider>{children}</TooltipProvider>
           <Toaster />
-          <FlashToaster />
+          {/* Reads the URL; the boundary keeps dynamic routes prerenderable. */}
+          <Suspense>
+            <FlashToaster />
+          </Suspense>
         </ThemeProvider>
       </body>
     </html>
