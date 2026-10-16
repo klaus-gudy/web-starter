@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, LogOut } from "lucide-react"
+import { LayoutDashboard } from "lucide-react"
 
 import {
   Sidebar,
@@ -22,7 +22,13 @@ const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
 ]
 
-export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+  footer,
+  ...props
+}: React.ComponentProps<typeof Sidebar> & {
+  /** Server-rendered user menu; see NavUser. */
+  footer?: React.ReactNode
+}) {
   const pathname = usePathname()
 
   return (
@@ -64,18 +70,7 @@ export function AppSidebar(props: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Log out">
-              <Link href="/login">
-                <LogOut />
-                <span>Log out</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
+      <SidebarFooter>{footer}</SidebarFooter>
       <SidebarRail />
     </Sidebar>
   )
