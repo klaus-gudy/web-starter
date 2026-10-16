@@ -1,0 +1,11 @@
+// Prisma schema. Models are added in later migrations; the connection URL is
+// built from the DB_* variables in prisma.config.ts.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
