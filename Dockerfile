@@ -10,6 +10,12 @@ RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Development server: source is bind-mounted by docker-compose.dev.yml
+FROM deps AS dev
+ENV NODE_ENV=development
+EXPOSE 3000
+CMD ["node_modules/.bin/next", "dev", "-H", "0.0.0.0", "-p", "3000"]
+
 # Build the app
 FROM base AS builder
 ARG NEXT_PUBLIC_APP_URL
