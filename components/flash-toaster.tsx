@@ -25,14 +25,27 @@ function readFlash(): Flash | null {
   }
 }
 
+function showFlash() {
+  const flash = readFlash()
+  if (flash) toast[flash.type](flash.message, { id: "flash" })
+}
+
 // Shows the flash message left by a server action, once, after it redirects.
 export function FlashToaster() {
   const pathname = usePathname()
 
+  useEffect(showFlash, [pathname])
+
+  // A redirect back to the same page (a rejected form) leaves the pathname
+  // unchanged, so also watch for the cookie being set.
   useEffect(() => {
-    const flash = readFlash()
-    if (flash) toast[flash.type](flash.message, { id: "flash" })
-  }, [pathname])
+    if (!("cookieStore" in window)) return
+    const onChange = (event: CookieChangeEvent) => {
+      if (event.changed.some((cookie) => cookie.name === FLASH_COOKIE)) showFlash()
+    }
+    window.cookieStore.addEventListener("change", onChange)
+    return () => window.cookieStore.removeEventListener("change", onChange)
+  }, [])
 
   return null
 }
