@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { Prisma } from "@/lib/generated/prisma/client";
+import { claimInvitation, findOpenInvitation, invitationToken } from "@/lib/invitations";
 import {
   createOrganizationWithOwner,
   isOrganizationNameTaken,
@@ -62,7 +63,17 @@ export type SignUpState = {
   email?: string;
 };
 
-/** Sign-up step 2. Errors come back to the form so it keeps what was typed. */
+// Thrown inside the sign-up transaction to undo it when the invitation was
+// used by someone else first.
+class InvitationGone extends Error {}
+
+/**
+ * Sign-up step 2. From an invitation link it accepts the invitation with its
+ * role; otherwise it creates the organization with the user as owner. An
+ * email that already has an account can still do either with that account's
+ * password, unless it's creating an organization and already owns one.
+ * Errors come back to the form so it keeps what was typed.
+ */
 export async function signUp(
   _previous: SignUpState,
   formData: FormData
@@ -77,11 +88,10 @@ export async function signUp(
     message: `${organizationName} was just taken. Pick another name.`,
     organizationTaken: true,
   };
+  const token = invitationToken(next);
+  const gone = error("This invitation can't be used any more. Ask for a new link.");
 
-  // Someone following an invitation joins that organization instead.
-  const invited = next?.startsWith("/invite/") ?? false;
-
-  if (!invited && !organizationName) {
+  if (!token && !organizationName) {
     return { message: "Enter your organization's name.", organizationTaken: true };
   }
   if (!name) return error("Enter your name.");
@@ -90,45 +100,90 @@ export async function signUp(
     return error(`Use a password of at least ${MIN_PASSWORD} characters.`);
   }
 
-  const prisma = getPrisma();
-  const emailTaken = "An account with this email already exists. Log in instead.";
-  if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
-    return error(emailTaken);
+  const invitation = token ? await findOpenInvitation(token) : null;
+  if (token && !invitation) return gone;
+  if (invitation && invitation.email.toLowerCase() !== email) {
+    return error(`This invitation is for ${invitation.email}. Use that address.`);
   }
-  if (!invited && (await isOrganizationNameTaken(organizationName))) return taken;
 
-  const passwordHash = await hashPassword(password);
+  const prisma = getPrisma();
+  const existing = await prisma.user.findUnique({
+    where: { email },
+    select: {
+      id: true,
+      deletedAt: true,
+      authAccounts: { where: { provider: "password" }, select: { passwordHash: true } },
+      memberships: {
+        where: {
+          status: "active",
+          role: { key: "owner", organizationId: null },
+          organization: { deletedAt: null },
+        },
+        select: { id: true },
+        take: 1,
+      },
+    },
+  });
+  if (existing) {
+    if (existing.deletedAt) return error("This account has been closed.");
+    if (!invitation && existing.memberships.length) {
+      return error("This email already owns an organization. Log in instead.");
+    }
+    const hash = existing.authAccounts[0]?.passwordHash;
+    const valid = hash ? await verifyPassword(password, hash) : await verifyNothing(password);
+    if (!valid) {
+      return error(
+        "An account with this email already exists. Enter its password to continue."
+      );
+    }
+  }
+  if (!invitation && (await isOrganizationNameTaken(organizationName))) return taken;
 
-  // The user, their sign-in method and their organization (with them as
-  // owner) are created together or not at all.
+  const passwordHash = existing ? null : await hashPassword(password);
+
+  // The user (if new), their sign-in method and their membership are created
+  // together or not at all.
   const created = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({
-      data: { email, name, lastSignInAt: new Date() },
-      select: { id: true },
-    });
-    await tx.authAccount.create({
-      data: { userId: user.id, provider: "password", providerAccountId: user.id, passwordHash },
-    });
-    const organization = invited
-      ? null
-      : await createOrganizationWithOwner(tx, { name: organizationName, userId: user.id });
-    return { userId: user.id, organizationId: organization?.id ?? null };
+    let userId = existing?.id;
+    if (userId) {
+      await tx.user.update({ where: { id: userId }, data: { lastSignInAt: new Date() } });
+    } else {
+      const user = await tx.user.create({
+        data: { email, name, lastSignInAt: new Date() },
+        select: { id: true },
+      });
+      userId = user.id;
+      await tx.authAccount.create({
+        data: { userId, provider: "password", providerAccountId: userId, passwordHash },
+      });
+    }
+    if (invitation) {
+      if (!(await claimInvitation(tx, invitation, userId))) throw new InvitationGone();
+      return { userId, organizationId: invitation.organization.id };
+    }
+    const organization = await createOrganizationWithOwner(tx, { name: organizationName, userId });
+    return { userId, organizationId: organization.id };
   }).catch((error: unknown) => {
+    if (error instanceof InvitationGone) return "gone" as const;
     // Someone took the email or organization name between the check and the insert.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return null;
     throw error;
   });
+  if (created === "gone") return gone;
   if (!created) {
-    return !invited && (await isOrganizationNameTaken(organizationName))
+    return !invitation && (await isOrganizationNameTaken(organizationName))
       ? taken
-      : error(emailTaken);
+      : error("An account with this email was just created. Log in instead.");
   }
 
   await createSession(created.userId, created.organizationId);
-  if (!invited) {
-    await setFlash({ type: "success", message: `Welcome! ${organizationName} is ready.` });
-  }
-  redirect(next ?? "/dashboard");
+  await setFlash({
+    type: "success",
+    message: invitation
+      ? `You joined ${invitation.organization.name} as ${invitation.role.name}.`
+      : `Welcome! ${organizationName} is ready.`,
+  });
+  redirect("/dashboard");
 }
 
 export async function login(formData: FormData) {
