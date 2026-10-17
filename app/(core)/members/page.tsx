@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
 import { Suspense } from "react";
-import { Building2 } from "lucide-react";
+import { Users } from "lucide-react";
 import { InviteDialog } from "./invite-dialog";
 import {
   RemoveMemberMenu,
@@ -10,7 +9,6 @@ import {
   RoleSelect,
 } from "./member-controls";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -20,7 +18,6 @@ import {
 } from "@/components/ui/card";
 import {
   Empty,
-  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -59,40 +56,28 @@ export default function MembersPage() {
   );
 }
 
-function NewOrganizationEmpty({ title, description }: { title: string; description: string }) {
-  return (
-    <Empty className="border">
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Building2 />
-        </EmptyMedia>
-        <EmptyTitle>{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button asChild>
-          <Link href="/organizations/new">Create an organization</Link>
-        </Button>
-      </EmptyContent>
-    </Empty>
-  );
-}
-
 async function Members() {
   await connection();
   const member = await readActiveMember();
   if (!member) {
     return (
-      <NewOrganizationEmpty
-        title="No organization selected"
-        description="Pick one from the menu at the top of the sidebar, or create a new one."
-      />
+      <Empty className="border">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <Users />
+          </EmptyMedia>
+          <EmptyTitle>You&apos;re not in an organization</EmptyTitle>
+          <EmptyDescription>
+            Ask an organization&apos;s owner or admin for an invitation link.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
   const { organization, permissions } = member;
   const isOwner = member.role.key === "owner";
-  const canInvite = permissions.has("members.invite") && !organization.isPersonal;
+  const canInvite = permissions.has("members.invite");
   const canUpdate = permissions.has("members.update");
   const canRemove = permissions.has("members.remove");
 
@@ -155,9 +140,8 @@ async function Members() {
                 const self = row.id === member.membershipId;
                 const name = row.user.name || row.user.email;
                 const touchesOwner = row.role.key === "owner" && !isOwner;
-                const editable = canUpdate && !touchesOwner && !organization.isPersonal;
-                const removable =
-                  !organization.isPersonal && (self || (canRemove && !touchesOwner));
+                const editable = canUpdate && !touchesOwner;
+                const removable = self || (canRemove && !touchesOwner);
                 return (
                   <TableRow key={row.id}>
                     <TableCell>
@@ -205,19 +189,12 @@ async function Members() {
         </CardContent>
       </Card>
 
-      {organization.isPersonal ? (
-        <NewOrganizationEmpty
-          title="This is your personal workspace"
-          description="It's just for you. Create an organization to work with other people."
-        />
-      ) : null}
-
       {canInvite && invitations.length ? (
         <Card>
           <CardHeader>
             <CardTitle>Pending invitations</CardTitle>
             <CardDescription>
-              Each link works once. Inviting the same email again replaces its link.
+              Each link works once. Inviting the same email again creates a new link.
             </CardDescription>
           </CardHeader>
           <CardContent>
