@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { signUp } from "../actions";
 import { NextField } from "@/components/next-field";
+import { OrganizationField } from "@/components/organization-field";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,6 +47,9 @@ export default function SignUpPage() {
                 required
               />
             </Field>
+            <Suspense>
+              <OrganizationField />
+            </Suspense>
             <Field>
               <FieldLabel htmlFor="email">Email</FieldLabel>
               <Input
