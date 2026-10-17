@@ -28,10 +28,12 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 
+type Invitation = { email: string; organizationName: string; roleName: string };
+
 // Two steps: claim an organization name, then create the account that owns
-// it. Someone arriving from an invitation link skips step 1 and joins the
-// organization that invited them. Render inside <Suspense>: it reads the URL.
-export function SignUpForm() {
+// it. Someone arriving from an invitation link skips step 1: signing up
+// accepts the invitation instead. Render inside <Suspense>: it reads the URL.
+export function SignUpForm({ invitation }: { invitation: Invitation | null }) {
   const next = useSearchParams().get("next");
   const invited = next?.startsWith("/invite/") ?? false;
   const [organization, setOrganization] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export function SignUpForm() {
   return (
     <AccountStep
       organization={organization}
+      invitation={invitation}
       next={next}
       onBack={(message = "") => {
         setTakenMessage(message);
@@ -136,10 +139,12 @@ const initialSignUp: SignUpState = { message: "" };
 
 function AccountStep({
   organization,
+  invitation,
   next,
   onBack,
 }: {
   organization: string | null;
+  invitation: Invitation | null;
   next: string | null;
   onBack: (message?: string) => void;
 }) {
@@ -156,12 +161,19 @@ function AccountStep({
     <Card>
       <CardHeader>
         {organization ? <CardDescription>Step 2 of 2</CardDescription> : null}
-        <CardTitle>Create your account</CardTitle>
+        <CardTitle>
+          {invitation ? `Join ${invitation.organizationName}` : "Create your account"}
+        </CardTitle>
         <CardDescription>
           {organization ? (
             <>
               You&apos;ll own{" "}
               <span className="font-medium text-foreground">{organization}</span>.
+            </>
+          ) : invitation ? (
+            <>
+              You&apos;ll join as{" "}
+              <span className="font-medium text-foreground">{invitation.roleName}</span>.
             </>
           ) : (
             "Enter your details to accept the invitation."
@@ -195,7 +207,8 @@ function AccountStep({
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
-                defaultValue={state.email}
+                defaultValue={invitation?.email ?? state.email}
+                readOnly={!!invitation}
                 required
               />
             </Field>
@@ -209,14 +222,21 @@ function AccountStep({
                 minLength={8}
                 required
               />
-              <FieldDescription>At least 8 characters.</FieldDescription>
+              <FieldDescription>
+                At least 8 characters. Already have an account with this email?
+                Enter its password.
+              </FieldDescription>
             </Field>
             {state.message && !state.organizationTaken ? (
               <FieldError>{state.message}</FieldError>
             ) : null}
             <Field>
               <Button type="submit" disabled={pending}>
-                {pending ? "Creating account…" : "Create account"}
+                {pending
+                  ? "Creating account…"
+                  : invitation
+                    ? "Accept invitation"
+                    : "Create account"}
               </Button>
               {organization ? (
                 <Button type="button" variant="ghost" onClick={() => onBack()}>
