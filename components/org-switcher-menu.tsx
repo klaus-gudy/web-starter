@@ -1,8 +1,7 @@
 "use client"
 
-import Link from "next/link"
 import { useTransition } from "react"
-import { Check, ChevronsUpDown, Plus } from "lucide-react"
+import { Check, ChevronsUpDown } from "lucide-react"
 import { toast } from "sonner"
 
 import { switchOrganization } from "@/app/(core)/organizations/actions"
@@ -11,12 +10,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { SidebarMenuButton, useSidebar } from "@/components/ui/sidebar"
 
-type Organization = { id: string; name: string; isPersonal: boolean; roleName: string }
+type Organization = { id: string; name: string; roleName: string }
 
 function OrgMark({ name }: { name: string }) {
   return (
@@ -59,7 +57,7 @@ export function OrgSwitcherMenu({
               {active?.name ?? "No organization"}
             </span>
             <span className="truncate text-xs text-muted-foreground">
-              {active ? (active.isPersonal ? "Personal" : active.roleName) : "Pick one below"}
+              {active ? active.roleName : "Pick one below"}
             </span>
           </div>
           <ChevronsUpDown className="ml-auto" />
@@ -79,13 +77,6 @@ export function OrgSwitcherMenu({
             {org.id === activeId ? <Check className="ml-auto" /> : null}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild className="gap-2">
-          <Link href="/organizations/new">
-            <Plus />
-            New organization
-          </Link>
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
