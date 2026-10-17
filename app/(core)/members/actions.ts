@@ -44,19 +44,25 @@ async function hasOtherOwner(
   return owners > 0;
 }
 
-/** Points the user's sessions in this organization at their personal workspace. */
+/** Points the user's sessions in this organization at another one they're in, if any. */
 async function moveSessionsOut(
   tx: Prisma.TransactionClient,
   userId: string,
   organizationId: string
 ) {
-  const personal = await tx.membership.findFirst({
-    where: { userId, status: "active", organization: { isPersonal: true, deletedAt: null } },
+  const other = await tx.membership.findFirst({
+    where: {
+      userId,
+      status: "active",
+      organizationId: { not: organizationId },
+      organization: { deletedAt: null },
+    },
+    orderBy: { joinedAt: "asc" },
     select: { organizationId: true },
   });
   await tx.session.updateMany({
     where: { userId, activeOrganizationId: organizationId },
-    data: { activeOrganizationId: personal?.organizationId ?? null },
+    data: { activeOrganizationId: other?.organizationId ?? null },
   });
 }
 
@@ -71,9 +77,6 @@ export async function inviteMember(
 ): Promise<InviteState> {
   const member = await memberWith("members.invite");
   if (!member) return notAllowed;
-  if (member.organization.isPersonal) {
-    return { message: "Personal workspaces can't have other members. Create an organization." };
-  }
 
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   if (!EMAIL.test(email)) return { message: "Enter a valid email address." };
@@ -182,7 +185,6 @@ export async function removeMember(membershipId: string): Promise<Result> {
   if (!member) return notAllowed;
   const leaving = membershipId === member.membershipId;
   if (!leaving && !member.permissions.has("members.remove")) return notAllowed;
-  if (member.organization.isPersonal) return { message: "You can't leave your personal workspace." };
 
   const prisma = getPrisma();
   const result = await prisma.$transaction(async (tx): Promise<Result> => {
