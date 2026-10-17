@@ -17,14 +17,14 @@ export function uniqueSlug(name: string) {
 /** Creates an organization with the user as its owner. Run inside a transaction. */
 export async function createOrganizationWithOwner(
   tx: Prisma.TransactionClient,
-  { name, userId, isPersonal = false }: { name: string; userId: string; isPersonal?: boolean }
+  { name, userId }: { name: string; userId: string }
 ) {
   const owner = await tx.role.findFirstOrThrow({
     where: { organizationId: null, key: "owner" },
     select: { id: true },
   })
   const organization = await tx.organization.create({
-    data: { name, slug: uniqueSlug(name), isPersonal, createdById: userId },
+    data: { name, slug: uniqueSlug(name), createdById: userId },
     select: { id: true },
   })
   await tx.membership.create({
