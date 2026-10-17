@@ -37,12 +37,17 @@ function formPath(path: string, next: string | null) {
 
 export async function signUp(formData: FormData) {
   const name = field(formData, "name").slice(0, 100);
+  const organizationName = field(formData, "organization").slice(0, 100);
   const email = field(formData, "email").toLowerCase();
   const password = String(formData.get("password") ?? "");
   const next = nextPath(formData);
   const back = formPath("/sign-up", next);
 
+  // Someone following an invitation joins that organization instead.
+  const invited = next?.startsWith("/invite/") ?? false;
+
   if (!name) return fail(back, "Enter your name.");
+  if (!invited && !organizationName) return fail(back, "Enter your organization's name.");
   if (!EMAIL.test(email)) return fail(back, "Enter a valid email address.");
   if (password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
     return fail(back, `Use a password of at least ${MIN_PASSWORD} characters.`);
@@ -55,8 +60,8 @@ export async function signUp(formData: FormData) {
 
   const passwordHash = await hashPassword(password);
 
-  // The user, their sign-in method and their personal workspace (with them
-  // as owner) are created together or not at all.
+  // The user, their sign-in method and their organization (with them as
+  // owner) are created together or not at all.
   const created = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
       data: { email, name, lastSignInAt: new Date() },
@@ -65,12 +70,10 @@ export async function signUp(formData: FormData) {
     await tx.authAccount.create({
       data: { userId: user.id, provider: "password", providerAccountId: user.id, passwordHash },
     });
-    const organization = await createOrganizationWithOwner(tx, {
-      name: `${name.split(/\s+/)[0]}'s workspace`,
-      userId: user.id,
-      isPersonal: true,
-    });
-    return { userId: user.id, organizationId: organization.id };
+    const organization = invited
+      ? null
+      : await createOrganizationWithOwner(tx, { name: organizationName, userId: user.id });
+    return { userId: user.id, organizationId: organization?.id ?? null };
   }).catch((error: unknown) => {
     // Someone signed up with the same email between the check and the insert.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return null;
@@ -79,7 +82,9 @@ export async function signUp(formData: FormData) {
   if (!created) return fail(back, "An account with this email already exists. Log in instead.");
 
   await createSession(created.userId, created.organizationId);
-  await setFlash({ type: "success", message: "Welcome! Your workspace is ready." });
+  if (!invited) {
+    await setFlash({ type: "success", message: `Welcome! ${organizationName} is ready.` });
+  }
   redirect(next ?? "/dashboard");
 }
 
