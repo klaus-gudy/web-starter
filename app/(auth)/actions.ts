@@ -112,10 +112,10 @@ export async function login(formData: FormData) {
     : await verifyNothing(password);
   if (!user || !valid) return fail(back, invalid);
 
-  // Resume in the personal workspace, else the oldest organization they're in.
+  // Resume in the oldest organization they're in.
   const membership = await prisma.membership.findFirst({
     where: { userId: user.id, status: "active", organization: { deletedAt: null } },
-    orderBy: [{ organization: { isPersonal: "desc" } }, { joinedAt: "asc" }],
+    orderBy: { joinedAt: "asc" },
     select: { organizationId: true },
   });
 
