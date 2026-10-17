@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { listOrganizations } from "@/lib/membership"
 import { readSession } from "@/lib/session"
 
-// The active organization, with a menu to switch or create one, for the
+// The active organization, with a menu to switch between them, for the
 // sidebar header. Reads the session, so render it inside
 // <Suspense fallback={<OrgSwitcherSkeleton />}>.
 export async function OrgSwitcher() {
