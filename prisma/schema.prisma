@@ -119,7 +119,8 @@ model VerificationToken {
 model Organization {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug        String    @unique
-  name        String
+  // Unique among live organizations, ignoring case: "Acme" and "acme" clash.
+  name        String    @db.Citext
   logoUrl     String?   @map("logo_url")
   // The workspace every user gets at sign-up; it has a single member.
   isPersonal  Boolean   @default(false) @map("is_personal")
@@ -135,6 +136,7 @@ model Organization {
   invitations Invitation[]
   sessions    Session[]
 
+  @@unique([name], map: "organizations_name_key", where: raw("deleted_at IS NULL"))
   @@map("organizations")
 }
 
