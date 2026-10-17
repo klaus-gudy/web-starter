@@ -29,6 +29,19 @@ type Role = { id: string; key: string; name: string };
 
 const initialState: InviteState = { message: "" };
 
+// Creates the invitation and copies its link straight away; the dialog's copy
+// button is there if the browser refuses.
+async function inviteAndCopy(previous: InviteState, formData: FormData) {
+  const state = await inviteMember(previous, formData);
+  if (state.success && state.link) {
+    navigator.clipboard.writeText(state.link).then(
+      () => toast.success("Invitation link copied."),
+      () => {}
+    );
+  }
+  return state;
+}
+
 export function InviteDialog({ roles }: { roles: Role[] }) {
   const [open, setOpen] = useState(false);
   // Remounting the form clears it and its result for the next invitation.
@@ -69,17 +82,17 @@ function InviteForm({
   onAnother: () => void;
   onDone: () => void;
 }) {
-  const [state, formAction, pending] = useActionState(inviteMember, initialState);
+  const [state, formAction, pending] = useActionState(inviteAndCopy, initialState);
   const defaultRole = roles.find((role) => role.key === "member") ?? roles[0];
 
   if (state.success && state.link) {
     return (
       <>
         <DialogHeader>
-          <DialogTitle>Invitation sent</DialogTitle>
+          <DialogTitle>Invitation link ready</DialogTitle>
           <DialogDescription>
-            We emailed {state.email} a link to join. You can also share it
-            yourself; it works once and expires in 7 days.
+            Send this link to {state.email} so they can join. It works once
+            and expires in 7 days.
           </DialogDescription>
         </DialogHeader>
         <CopyLink link={state.link} />
@@ -98,7 +111,7 @@ function InviteForm({
       <DialogHeader>
         <DialogTitle>Invite someone</DialogTitle>
         <DialogDescription>
-          They&apos;ll get an email with a link to join.
+          You&apos;ll get a link to send them so they can join.
         </DialogDescription>
       </DialogHeader>
       <FieldGroup className="py-4">
@@ -133,7 +146,7 @@ function InviteForm({
       </FieldGroup>
       <DialogFooter>
         <Button type="submit" disabled={pending}>
-          {pending ? "Sending…" : "Send invitation"}
+          {pending ? "Creating…" : "Create invitation link"}
         </Button>
       </DialogFooter>
     </form>
@@ -143,6 +156,16 @@ function InviteForm({
 function CopyLink({ link }: { link: string }) {
   const [copied, setCopied] = useState(false);
 
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   return (
     <div className="flex gap-2">
       <Input value={link} readOnly aria-label="Invitation link" onFocus={(e) => e.target.select()} />
@@ -151,10 +174,7 @@ function CopyLink({ link }: { link: string }) {
         size="icon"
         aria-label="Copy link"
         onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(link);
-            setCopied(true);
-          } catch {
+          if (!(await copy())) {
             toast.error("Couldn't copy. Select the link and copy it instead.");
           }
         }}
