@@ -40,7 +40,7 @@ These run on your machine against the database container, so start it first (`np
 
 ## Authentication and tenancy
 
-Sign-up has two steps: first an organization name, checked against existing organizations (names are unique, ignoring case), then name, email and password. It creates the user, the organization and their owner membership in one transaction, then signs them in. Someone signing up from an invitation link skips the organization and joins the one that invited them. Sessions live in the `sessions` table; the `session` cookie holds a random token whose SHA-256 hash is stored, and passwords are hashed with scrypt (`lib/password.ts`).
+Sign-up has two steps: first an organization name, checked against existing organizations (names are unique, ignoring case), then name, email and password. It creates the user, the organization and their owner membership in one transaction, then signs them in. An email that already has an account can still sign up with that account's password to create an organization, unless it already owns one. From an invitation link there is no organization step: signing up (or entering an existing account's password) accepts the invitation and gives the invited role. Sessions live in the `sessions` table; the `session` cookie holds a random token whose SHA-256 hash is stored, and passwords are hashed with scrypt (`lib/password.ts`).
 
 - In components, call `getCurrentUser()` from `lib/auth.ts` behind a `<Suspense>` boundary. It returns the user and their active organization, or redirects to `/login`.
 - In server actions, authorize with `readSession()` from `lib/session.ts`.
