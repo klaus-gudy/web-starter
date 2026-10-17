@@ -11,7 +11,7 @@ export type SystemRole = (typeof SYSTEM_ROLES)[number]
 export type ActiveMember = {
   userId: string
   membershipId: string
-  organization: { id: string; name: string; slug: string; isPersonal: boolean }
+  organization: { id: string; name: string; slug: string }
   role: { id: string; key: string; name: string }
   permissions: Set<string>
 }
@@ -27,7 +27,7 @@ export async function readActiveMember(): Promise<ActiveMember | null> {
       id: true,
       status: true,
       organization: {
-        select: { id: true, name: true, slug: true, isPersonal: true, deletedAt: true },
+        select: { id: true, name: true, slug: true, deletedAt: true },
       },
       role: {
         select: { id: true, key: true, name: true, permissions: { select: { permissionKey: true } } },
@@ -46,20 +46,19 @@ export async function readActiveMember(): Promise<ActiveMember | null> {
       id: organization.id,
       name: organization.name,
       slug: organization.slug,
-      isPersonal: organization.isPersonal,
     },
     role: { id: role.id, key: role.key, name: role.name },
     permissions: new Set(role.permissions.map((grant) => grant.permissionKey)),
   }
 }
 
-/** The organizations the user can switch to, personal workspace first. */
+/** The organizations the user can switch to, by name. */
 export async function listOrganizations(userId: string) {
   const memberships = await getPrisma().membership.findMany({
     where: { userId, status: "active", organization: { deletedAt: null } },
-    orderBy: [{ organization: { isPersonal: "desc" } }, { organization: { name: "asc" } }],
+    orderBy: { organization: { name: "asc" } },
     select: {
-      organization: { select: { id: true, name: true, isPersonal: true } },
+      organization: { select: { id: true, name: true } },
       role: { select: { name: true } },
     },
   })
