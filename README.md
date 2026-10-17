@@ -40,14 +40,14 @@ These run on your machine against the database container, so start it first (`np
 
 ## Authentication and tenancy
 
-Sign-up creates the user, a personal organization and an owner membership in one transaction, then signs them in. Sessions live in the `sessions` table; the `session` cookie holds a random token whose SHA-256 hash is stored, and passwords are hashed with scrypt (`lib/password.ts`).
+Sign-up asks for an organization name and creates the user, that organization and their owner membership in one transaction, then signs them in. Someone signing up from an invitation link skips the organization and joins the one that invited them. Sessions live in the `sessions` table; the `session` cookie holds a random token whose SHA-256 hash is stored, and passwords are hashed with scrypt (`lib/password.ts`).
 
 - In components, call `getCurrentUser()` from `lib/auth.ts` behind a `<Suspense>` boundary. It returns the user and their active organization, or redirects to `/login`.
 - In server actions, authorize with `readSession()` from `lib/session.ts`.
 - `proxy.ts` only checks that the cookie exists, sending visitors without one to `/login`.
 - For what the user may do in their active organization, call `readActiveMember()` from `lib/membership.ts` and check `permissions.has("members.invite")` and the like.
 
-Members are managed at `/members`: invite by email with a role, change roles, remove members or leave. An organization always keeps at least one owner. Invitation links (`/invite/<token>`) work once and expire after 7 days. Emails aren't sent yet: `lib/mailer.ts` writes them to the server log (`docker compose logs web`) until you connect a provider. The sidebar's organization menu switches the active organization or creates a new one.
+Members are managed at `/members`, which lists only the active organization's members: invite by email with a role, change roles, remove members or leave. An organization always keeps at least one owner. Inviting creates a link (`/invite/<token>`) that is copied for you to send yourself; no email goes out yet (`lib/mailer.ts` is a stub for when you connect a provider). Links work once and expire after 7 days. The sidebar's organization menu switches between the organizations you belong to; the user menu in the footer holds log out.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
