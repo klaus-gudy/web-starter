@@ -73,16 +73,17 @@ async function Invitation({ params }: Pick<PageProps<"/invite/[token]">, "params
       <Card>
         {intro}
         <CardContent className="text-sm text-muted-foreground">
-          Log in or create an account with{" "}
-          <span className="font-medium text-foreground">{invitation.email}</span>{" "}
-          to accept.
+          Accept with{" "}
+          <span className="font-medium text-foreground">{invitation.email}</span>.
+          No organization is created: you join this one as{" "}
+          {invitation.role.name}.
         </CardContent>
         <CardFooter className="flex-col gap-2">
           <Button asChild className="w-full">
-            <Link href={`/sign-up?next=${next}`}>Create an account</Link>
+            <Link href={`/sign-up?next=${next}`}>Accept invitation</Link>
           </Button>
           <Button asChild variant="outline" className="w-full">
-            <Link href={`/login?next=${next}`}>Log in</Link>
+            <Link href={`/login?next=${next}`}>I already have an account</Link>
           </Button>
         </CardFooter>
       </Card>
