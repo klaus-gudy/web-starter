@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 
 import { Prisma } from "@/lib/generated/prisma/client";
-import { sendEmail } from "@/lib/mailer";
 import { assignableRoles, readActiveMember, type ActiveMember } from "@/lib/membership";
 import { getPrisma } from "@/lib/prisma";
 import { createToken } from "@/lib/tokens";
@@ -118,19 +117,11 @@ export async function inviteMember(
     throw error;
   }
 
+  // No email is sent yet: the dialog shows the link for the inviter to share.
   const link = `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/invite/${token}`;
-  await sendEmail({
-    to: email,
-    subject: `You're invited to join ${member.organization.name}`,
-    text: [
-      `You've been invited to join ${member.organization.name} as ${role.name}.`,
-      `Accept the invitation: ${link}`,
-      `The link expires in ${INVITATION_DAYS} days.`,
-    ].join("\n\n"),
-  });
 
   revalidatePath("/members");
-  return { success: true, message: `Invitation sent to ${email}.`, link, email };
+  return { success: true, message: `Invitation link created for ${email}.`, link, email };
 }
 
 export async function revokeInvitation(invitationId: string): Promise<Result> {
