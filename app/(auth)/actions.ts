@@ -3,7 +3,11 @@
 import { redirect } from "next/navigation";
 
 import { Prisma } from "@/lib/generated/prisma/client";
-import { createOrganizationWithOwner } from "@/lib/organizations";
+import {
+  createOrganizationWithOwner,
+  isOrganizationNameTaken,
+  normalizeOrganizationName,
+} from "@/lib/organizations";
 import { hashPassword, verifyNothing, verifyPassword } from "@/lib/password";
 import { getPrisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
@@ -35,28 +39,63 @@ function formPath(path: string, next: string | null) {
   return next ? `${path}?next=${encodeURIComponent(next)}` : path;
 }
 
-export async function signUp(formData: FormData) {
+export type OrganizationCheck = { message: string; name?: string; available?: string };
+
+/** Sign-up step 1: whether the organization name is still free. */
+export async function checkOrganizationName(
+  _previous: OrganizationCheck,
+  formData: FormData
+): Promise<OrganizationCheck> {
+  const name = normalizeOrganizationName(field(formData, "organization"));
+  if (!name) return { message: "Enter your organization's name." };
+  if (await isOrganizationNameTaken(name)) {
+    return { message: `${name} is already taken. Try another name.`, name };
+  }
+  return { message: "", available: name };
+}
+
+export type SignUpState = {
+  message: string;
+  /** Set when the organization name was taken after step 1: go back to it. */
+  organizationTaken?: boolean;
+  name?: string;
+  email?: string;
+};
+
+/** Sign-up step 2. Errors come back to the form so it keeps what was typed. */
+export async function signUp(
+  _previous: SignUpState,
+  formData: FormData
+): Promise<SignUpState> {
   const name = field(formData, "name").slice(0, 100);
-  const organizationName = field(formData, "organization").slice(0, 100);
+  const organizationName = normalizeOrganizationName(field(formData, "organization"));
   const email = field(formData, "email").toLowerCase();
   const password = String(formData.get("password") ?? "");
   const next = nextPath(formData);
-  const back = formPath("/sign-up", next);
+  const error = (message: string): SignUpState => ({ message, name, email });
+  const taken: SignUpState = {
+    message: `${organizationName} was just taken. Pick another name.`,
+    organizationTaken: true,
+  };
 
   // Someone following an invitation joins that organization instead.
   const invited = next?.startsWith("/invite/") ?? false;
 
-  if (!name) return fail(back, "Enter your name.");
-  if (!invited && !organizationName) return fail(back, "Enter your organization's name.");
-  if (!EMAIL.test(email)) return fail(back, "Enter a valid email address.");
+  if (!invited && !organizationName) {
+    return { message: "Enter your organization's name.", organizationTaken: true };
+  }
+  if (!name) return error("Enter your name.");
+  if (!EMAIL.test(email)) return error("Enter a valid email address.");
   if (password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
-    return fail(back, `Use a password of at least ${MIN_PASSWORD} characters.`);
+    return error(`Use a password of at least ${MIN_PASSWORD} characters.`);
   }
 
   const prisma = getPrisma();
+  const emailTaken = "An account with this email already exists. Log in instead.";
   if (await prisma.user.findUnique({ where: { email }, select: { id: true } })) {
-    return fail(back, "An account with this email already exists. Log in instead.");
+    return error(emailTaken);
   }
+  if (!invited && (await isOrganizationNameTaken(organizationName))) return taken;
 
   const passwordHash = await hashPassword(password);
 
@@ -75,11 +114,15 @@ export async function signUp(formData: FormData) {
       : await createOrganizationWithOwner(tx, { name: organizationName, userId: user.id });
     return { userId: user.id, organizationId: organization?.id ?? null };
   }).catch((error: unknown) => {
-    // Someone signed up with the same email between the check and the insert.
+    // Someone took the email or organization name between the check and the insert.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return null;
     throw error;
   });
-  if (!created) return fail(back, "An account with this email already exists. Log in instead.");
+  if (!created) {
+    return !invited && (await isOrganizationNameTaken(organizationName))
+      ? taken
+      : error(emailTaken);
+  }
 
   await createSession(created.userId, created.organizationId);
   if (!invited) {
