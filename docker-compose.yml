@@ -1,10 +1,15 @@
+# Every name Docker creates (containers, the default network, the db-data
+# volume) is prefixed with the Compose project name, COMPOSE_PROJECT_NAME from
+# .env, so projects made from this template run side by side. Only host ports
+# are shared: PORT, DB_PORT and STUDIO_PORT in .env (`npm run configure`
+# picks free ones). Inside the network the app listens on 3000 and Postgres on 5432.
 services:
   web:
     build:
       context: .
       args:
         NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-    image: web-starter
+    image: ${COMPOSE_PROJECT_NAME:-web-starter}
     env_file: .env
     environment:
       PORT: 3000
@@ -22,7 +27,7 @@ services:
     build:
       context: .
       target: migrate
-    image: web-starter-migrate
+    image: ${COMPOSE_PROJECT_NAME:-web-starter}-migrate
     env_file: .env
     environment:
       DB_HOST: db
