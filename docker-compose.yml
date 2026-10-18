@@ -18,6 +18,14 @@ services:
       DATABASE_URL: ${DOCKER_DATABASE_URL:-}
     ports:
       - "${PORT:-3000}:3000"
+    healthcheck:
+      # /login renders without a session; busybox wget ships with the image.
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      # The dev server compiles the page on the first request.
+      start_period: 90s
     depends_on:
       migrate:
         condition: service_completed_successfully
