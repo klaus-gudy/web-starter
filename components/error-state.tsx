@@ -19,13 +19,17 @@ export function ErrorState({
   retry,
   className,
 }: {
-  error: Error & { digest?: string }
+  /** Whatever was thrown: an Error from the server, anything from the client. */
+  error: unknown
   retry: () => void
   className?: string
 }) {
   useEffect(() => {
     console.error(error)
   }, [error])
+  // Matches the error in the server log; production hides the message itself.
+  const digest =
+    error instanceof Error && "digest" in error ? String(error.digest) : null
 
   return (
     <Empty className={className}>
@@ -37,9 +41,9 @@ export function ErrorState({
         <EmptyDescription>
           This page couldn&apos;t load. It&apos;s usually a brief connection
           problem, so try again in a moment.
-          {error.digest && (
+          {digest && (
             <span className="mt-2 block font-mono text-xs">
-              Reference: {error.digest}
+              Reference: {digest}
             </span>
           )}
         </EmptyDescription>
