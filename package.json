@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "docker compose up --build -V",
     "dev:down": "docker compose down",
+    "dev:local": "docker compose up --detach --wait db && docker compose run --rm migrate && prisma generate && node --env-file=.env node_modules/next/dist/bin/next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
