@@ -18,3 +18,4 @@ docker-compose*.yml
 .dockerignore
 README.md
 AGENTS.md
+scripts
