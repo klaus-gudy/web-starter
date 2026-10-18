@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
+    "test": "node --test \"scripts/**/*.test.mjs\"",
     "db:generate": "docker compose exec web npx prisma generate",
     "db:migrate": "docker compose exec web sh -c \"npx prisma migrate dev && npx prisma generate\"",
     "db:studio": "docker compose up studio",
