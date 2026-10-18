@@ -46,10 +46,22 @@ Sign-up has two steps: first an organization name, checked against existing orga
 
 - In components, call `getCurrentUser()` from `lib/auth.ts` behind a `<Suspense>` boundary. It returns the user and their active organization, or redirects to `/login`.
 - In server actions, authorize with `readSession()` from `lib/session.ts`.
-- `proxy.ts` only checks that the cookie exists, sending visitors without one to `/login`.
+- `proxy.ts` only checks that the cookie exists, sending visitors without one to `/login`. Signed-in visitors who open `/login` or `/sign-up` are sent on to the dashboard (or their `?next=` path) after the session is checked in the database.
 - For what the user may do in their active organization, call `readActiveMember()` from `lib/membership.ts` and check `permissions.has("members.invite")` and the like.
 
 Members are managed at `/members`, which lists only the active organization's members: invite by email with a role, change roles, remove members or leave. An organization always keeps at least one owner. Inviting creates a link (`/invite/<token>`) that is copied for you to send yourself; no email goes out yet (`lib/mailer.ts` is a stub for when you connect a provider). Links work once and expire after 7 days. The sidebar's organization menu switches between the organizations you belong to; the user menu in the footer holds log out.
+
+### Rate limits
+
+Login, sign-up and the organization name check are rate-limited (`lib/rate-limit.ts`), with counters in the `rate_limits` table so limits hold across restarts and instances. Limits are per IP address, and password checks are also limited per email across login and sign-up. The numbers live in `LIMITS` in `app/(auth)/actions.ts`. The IP comes from `X-Forwarded-For`: in production, run behind a proxy that sets it and strips any value sent by the client.
+
+### Cleanup
+
+Each server process runs `cleanUpExpired()` (`lib/cleanup.ts`) a minute after it starts and then hourly, from `instrumentation.ts`. It deletes expired sessions, rate-limit counters and verification tokens, and marks pending invitations past their expiry as `expired`. Running several instances is fine: every step is idempotent.
+
+### Errors
+
+`app/(core)/error.tsx` handles errors in signed-in pages and keeps the sidebar; `app/error.tsx` covers the rest; `app/global-error.tsx` replaces the root layout if it fails; `app/not-found.tsx` is the 404 page for unknown URLs and `notFound()`.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
