@@ -12,7 +12,7 @@ npm-debug.log*
 .DS_Store
 .env
 .env.*
-!.env.template
+!.env.example
 Dockerfile
 docker-compose*.yml
 .dockerignore
