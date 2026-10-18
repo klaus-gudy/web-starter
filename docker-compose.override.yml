@@ -18,7 +18,8 @@ services:
     restart: "no"
 
   # Prisma Studio, on demand: `docker compose up studio`, then open
-  # http://localhost:5555 (or STUDIO_PORT from .env). Studio only listens
+  # http://localhost:5555 (or STUDIO_PORT from .env). COMPOSE_PROFILES=tools in
+  # .env starts it with every `docker compose up`. Studio only listens
   # inside its container, so docker/studio-forward.mjs publishes it.
   studio:
     build:
