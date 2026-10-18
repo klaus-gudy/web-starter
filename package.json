@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "docker compose exec web npx prisma generate",
     "db:migrate": "docker compose exec web sh -c \"npx prisma migrate dev && npx prisma generate\"",
-    "db:studio": "docker compose up studio"
+    "db:studio": "docker compose up studio",
+    "setup": "node scripts/setup/cli.mjs",
+    "configure": "node scripts/setup/cli.mjs --reconfigure"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
