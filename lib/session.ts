@@ -1,6 +1,7 @@
 import { cookies, headers } from "next/headers"
 
 import { getPrisma } from "@/lib/prisma"
+import { clientIp } from "@/lib/rate-limit"
 import { createToken, hashToken } from "@/lib/tokens"
 
 // Database sessions. The browser holds a random token in an httpOnly cookie;
@@ -20,7 +21,7 @@ export async function createSession(userId: string, activeOrganizationId: string
       tokenHash,
       userId,
       activeOrganizationId,
-      ipAddress: requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+      ipAddress: await clientIp(),
       userAgent: requestHeaders.get("user-agent")?.slice(0, 500) || null,
       expiresAt,
     },
