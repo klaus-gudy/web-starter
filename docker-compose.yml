@@ -15,6 +15,7 @@ services:
       PORT: 3000
       DB_HOST: db
       DB_PORT: 5432
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-}
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
@@ -32,6 +33,7 @@ services:
     environment:
       DB_HOST: db
       DB_PORT: 5432
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-}
     depends_on:
       db:
         condition: service_healthy
