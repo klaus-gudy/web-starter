@@ -13,9 +13,24 @@ services:
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # Brings the database schema up to date, then exits; web waits for it.
+  migrate:
+    build:
+      context: .
+      target: migrate
+    image: web-starter-migrate
+    env_file: .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+    depends_on:
       db:
         condition: service_healthy
-    restart: unless-stopped
+    restart: "no"
 
   db:
     image: postgres:17-alpine
