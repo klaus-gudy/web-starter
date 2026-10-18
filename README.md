@@ -24,7 +24,9 @@ To run the production build instead:
 docker compose up --build
 ```
 
-Database settings (`DB_*`, including `DB_SCHEMA`) come from `.env`. The schema is created the first time the database volume is initialised; `docker compose down -v` resets it, deleting all data.
+Database settings (`DB_*`, including `DB_SCHEMA`) come from `.env`. The Postgres schema is created the first time the database volume is initialised; `docker compose down -v` resets it, deleting all data.
+
+Both commands start a one-off `migrate` service first, which runs `prisma migrate deploy`; the app starts only after it succeeds. A fresh clone therefore gets its tables on the first start, and a deploy applies new migrations before the new app version runs.
 
 ## Database with Prisma
 
@@ -36,7 +38,7 @@ npm run db:generate   # regenerate the client into lib/generated/prisma
 npm run db:studio     # browse data at http://localhost:5555
 ```
 
-These run on your machine against the database container, so start it first (`npm run dev`, or `docker compose up -d db`). The dev container regenerates the client every time it starts.
+These run on your machine against the database container, so start it first (`npm run dev`, or `docker compose up -d db`). `db:migrate` is for authoring migrations; committed migrations are applied automatically on the next start. The dev container regenerates the client every time it starts.
 
 ## Authentication and tenancy
 
