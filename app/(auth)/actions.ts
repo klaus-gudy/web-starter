@@ -9,6 +9,7 @@ import {
   isOrganizationNameTaken,
   normalizeOrganizationName,
 } from "@/lib/organizations";
+import { safeNextPath } from "@/lib/next-path";
 import { hashPassword, verifyNothing, verifyPassword } from "@/lib/password";
 import { getPrisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
@@ -28,11 +29,8 @@ async function fail(path: string, message: string): Promise<never> {
   redirect(path);
 }
 
-// Where to go after signing in: a path inside this app, from the form's
-// "next" field (set when an invitation link sent someone to log in).
 function nextPath(formData: FormData) {
-  const next = field(formData, "next");
-  return next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : null;
+  return safeNextPath(field(formData, "next"));
 }
 
 // Back to the form, keeping where to go after signing in.
