@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build --renew-anon-volumes",
-    "dev:down": "docker compose -f docker-compose.yml -f docker-compose.dev.yml down",
+    "dev": "docker compose up --build -V",
+    "dev:down": "docker compose down",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio --port 5555 --browser none"
+    "typecheck": "tsc --noEmit",
+    "db:generate": "docker compose exec web npx prisma generate",
+    "db:migrate": "docker compose exec web sh -c \"npx prisma migrate dev && npx prisma generate\"",
+    "db:studio": "docker compose up studio"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
