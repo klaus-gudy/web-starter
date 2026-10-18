@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { login } from "../actions";
 import { NextField } from "@/components/next-field";
+import { RedirectIfSignedIn } from "@/components/redirect-if-signed-in";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,9 +24,12 @@ export const metadata: Metadata = {
   title: "Log in",
 };
 
-export default function LoginPage() {
+export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <Card>
+      <Suspense>
+        <SignedInRedirect searchParams={searchParams} />
+      </Suspense>
       <CardHeader>
         <CardTitle>Log in to your account</CardTitle>
         <CardDescription>
@@ -70,4 +74,9 @@ export default function LoginPage() {
       </CardContent>
     </Card>
   );
+}
+
+async function SignedInRedirect({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
+  const { next } = await searchParams;
+  return <RedirectIfSignedIn next={next} />;
 }
