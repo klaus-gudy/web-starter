@@ -250,3 +250,18 @@ model Invitation {
   @@index([roleId])
   @@map("invitations")
 }
+
+// ---------------------------------------------------------------------------
+// Rate limits
+// ---------------------------------------------------------------------------
+
+// Fixed-window counters for lib/rate-limit.ts, one row per key, e.g.
+// "login:ip:203.0.113.7". Expired rows are deleted by lib/cleanup.ts.
+model RateLimit {
+  key     String   @id
+  count   Int
+  resetAt DateTime @map("reset_at") @db.Timestamptz
+
+  @@index([resetAt])
+  @@map("rate_limits")
+}
