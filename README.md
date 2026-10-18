@@ -1,19 +1,15 @@
 # Web Starter
 
-A Next.js starter with Postgres, Prisma, email and password accounts, organizations with roles, and invitations. The app and its database run in Docker, in development too.
+A Next.js starter with Postgres, Prisma, email and password accounts, organizations with roles, and invitations.
+
+Everything runs in Docker, in development too: the app, the database, migrations, Prisma commands, type checks and lint. The only thing you need on your machine is Docker, so everyone runs the same Node.js and the same dependencies.
 
 ## Starting a project from this template
 
 Do these once, right after copying the template.
 
-1. **Install the tools:** Docker, and Node.js 24 with npm. Docker runs the app; Node is only needed on your machine for the Prisma commands (`npm run db:*`) and your editor.
-2. **Install dependencies on your machine:**
-
-   ```bash
-   npm install
-   ```
-
-3. **Create your `.env`:**
+1. **Install Docker** (Docker Desktop, or Docker Engine with the Compose plugin). You don't need Node.js or npm on your machine.
+2. **Create your `.env`:**
 
    ```bash
    cp .env.template .env
@@ -21,42 +17,63 @@ Do these once, right after copying the template.
 
    Then edit it:
    - `DB_PASSWORD`: replace `change-me`.
-   - `DB_PORT`: the port Postgres is published on for your machine. Change it if something else already uses 5432 (such as a local Postgres).
    - `PORT` and `NEXT_PUBLIC_APP_URL`: change both together if port 3000 is taken. `NEXT_PUBLIC_APP_URL` is the address invitation links point to, so it must be the address people open.
+   - `DB_PORT`: the port Postgres is published on, for database tools on your machine. Change it if something else already uses 5432 (such as a local Postgres).
    - `DB_NAME`, `DB_USER`: optionally rename to your project.
-4. **Rename the project.** These still say `web-starter` or the create-next-app defaults:
+3. **Rename the project.** These still say `web-starter` or the create-next-app defaults:
    - `name` in `package.json`.
-   - The `image:` names in `docker-compose.yml` (`web-starter`, `web-starter-migrate`) and `docker-compose.dev.yml` (`web-starter-dev`). Two projects with the same image names overwrite each other's images.
+   - The `image:` names in `docker-compose.yml` (`web-starter`, `web-starter-migrate`) and `docker-compose.override.yml` (`web-starter-dev`). Two projects with the same image names overwrite each other's images.
    - `title` and `description` in `metadata` in `app/layout.tsx` (currently "Create Next App").
    - The heading of this README, and `app/favicon.ico`.
-5. **Start it:**
+4. **Start it:**
 
    ```bash
-   npm run dev
+   docker compose up --build -V
    ```
 
-   The first start builds the images, creates the database, and applies all migrations; nothing else needs to run. Open the `NEXT_PUBLIC_APP_URL` address (http://localhost:3000 by default) and sign up: the first account creates the first organization and owns it.
+   The first start builds the images, installs dependencies inside them, creates the database and applies all migrations. Open the `NEXT_PUBLIC_APP_URL` address (http://localhost:3000 by default) and sign up: the first account creates the first organization and owns it.
+
+## How the Docker setup works
+
+- `docker-compose.yml` is the production setup: the `db` service, a one-off `migrate` service that runs `prisma migrate deploy` and exits, and the `web` app, which starts only after `migrate` succeeds.
+- `docker-compose.override.yml` turns it into the development setup. Docker Compose loads it automatically, so a plain `docker compose ...` command is always development: `web` runs `next dev` with your source folder mounted for hot reload. It also defines `studio`, which only starts when you ask for it.
+- `node_modules` lives inside the container, not in your folder, so it always matches the container's Linux and Node.js versions.
 
 ## Everyday commands
 
+Run these from the project folder.
+
 ```bash
-npm run dev            # app + Postgres with hot reload; Ctrl+C to stop
-npm run dev:down       # remove the dev containers (data is kept)
-docker compose up --build   # run the production build locally
-docker compose down -v      # delete the containers and all data (fresh database)
+docker compose up --build -V          # start app + database with hot reload (Ctrl+C to stop)
+docker compose down                   # remove the containers (data is kept)
+docker compose down -v                # remove the containers and all data (fresh database)
+
+docker compose exec web npm run typecheck   # type check
+docker compose exec web npm run lint        # lint
+docker compose up studio                    # Prisma Studio at http://localhost:5555
+
+docker compose -f docker-compose.yml up --build   # run the production build locally
 ```
+
+`--build` rebuilds the image when the Dockerfile or dependencies changed, and `-V` gives the container a fresh `node_modules` from that image; both are quick when nothing changed. `exec` commands need the app running (`docker compose up` in another terminal). In Prisma Studio, pick the `app` schema (or your `DB_SCHEMA`) at the top left.
+
+If you do have Node.js installed, the same commands exist as npm scripts (`npm run dev`, `npm run dev:down`, `npm run db:migrate`, `npm run db:studio`), which call Docker for you.
 
 Edits under `app/`, `components/` and `lib/` reload automatically. You need to do something yourself in these cases:
 
-- **After changing dependencies:** run `npm install`, then `npm run dev` again. It rebuilds the image and refreshes the container's `node_modules`.
-- **After changing `NEXT_PUBLIC_*` variables:** restart, and rebuild for production (`docker compose up --build`): they're baked in at build time.
-- **After adding or changing `instrumentation.ts`:** restart `npm run dev`; it's only loaded at startup.
-- **After editing `prisma/schema.prisma`:** with the app running, run `npm run db:migrate` in your own terminal (it asks for a migration name, so it needs an interactive terminal), then commit the new folder under `prisma/migrations`. Everyone else gets it applied automatically on their next start.
+- **Adding a dependency:** `docker compose exec web npm install <package>` (add `-D` for a dev dependency). It updates `package.json` and `package-lock.json` in your folder and installs it in the running container; commit both files. Everyone else gets it on their next `docker compose up --build -V`.
+- **After pulling changes to dependencies:** `docker compose up --build -V`.
+- **After changing `NEXT_PUBLIC_*` variables:** restart, and rebuild for production: they're baked in at build time.
+- **After adding or changing `instrumentation.ts`:** restart; it's only loaded at startup.
+- **After editing `prisma/schema.prisma`:** create a migration (see below), then commit the new folder under `prisma/migrations`. Everyone else gets it applied automatically on their next start.
 
-Database settings (`DB_*`, including `DB_SCHEMA`) come from `.env`. The Postgres schema named by `DB_SCHEMA` is created the first time the database volume is initialised. Both `npm run dev` and `docker compose up` start a one-off `migrate` service first, which runs `prisma migrate deploy`; the app starts only after it succeeds.
+**On Linux:** the dev container runs as root, so files it creates in your folder (new migrations, `package-lock.json`, `lib/generated`) end up owned by root. Take them back with `sudo chown -R "$USER": .` when your editor can't save them. Docker Desktop on macOS and Windows maps ownership for you.
+
+**Editor support:** your editor's TypeScript features need `node_modules` in the folder. Either open the project in the container with VS Code's Dev Containers extension ("Attach to Running Container", folder `/app`), or, if you have Node.js, run `npm install` on your machine for the editor only. Running the app still happens in Docker either way.
 
 ## Before going to production
 
+- **Run only the base file:** `docker compose -f docker-compose.yml up -d --build`. Without `-f`, Compose also loads the development override.
 - **Build with the real address:** set `NEXT_PUBLIC_APP_URL` to the public URL before building the image.
 - **Use HTTPS:** in production the session cookie is `Secure`, so logging in only works over HTTPS (browsers make an exception for `localhost`).
 - **Put a reverse proxy in front** that sets `X-Forwarded-For` and strips any value the client sent. Rate limits and session IPs use it, and without such a proxy clients can fake their IP.
@@ -68,13 +85,17 @@ Database settings (`DB_*`, including `DB_SCHEMA`) come from `.env`. The Postgres
 
 Prisma connects with the same `DB_*` variables from `.env` (see `prisma.config.ts`), so there is no separate `DATABASE_URL`. Models go in `prisma/schema.prisma`; the app uses them through `getPrisma()` from `lib/prisma.ts`, which runs on the same `pg` pool as `query()`.
 
+With the app running:
+
 ```bash
-npm run db:migrate    # create and apply a migration after editing the schema (interactive)
-npm run db:generate   # regenerate the client into lib/generated/prisma
-npm run db:studio     # browse data at http://localhost:5555
+# Create and apply a migration after editing the schema. It asks for a name.
+docker compose exec web sh -c "npx prisma migrate dev && npx prisma generate"
+
+# Regenerate the client into lib/generated/prisma (also done on every start).
+docker compose exec web npx prisma generate
 ```
 
-These run on your machine against the database container, so start it first (`npm run dev`, or `docker compose up -d db`). `db:migrate` is for authoring migrations; committed migrations are applied automatically on the next start. The dev container regenerates the client every time it starts.
+Committed migrations are applied automatically by the `migrate` service on every start, in development and production. The Postgres schema named by `DB_SCHEMA` is created the first time the database volume is initialised.
 
 ## Authentication and tenancy
 
