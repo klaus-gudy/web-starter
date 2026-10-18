@@ -8,6 +8,13 @@ RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Applies pending migrations, then exits. Run by the migrate service in
+# docker-compose.yml before the app starts, in development and production.
+FROM deps AS migrate
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+CMD ["node_modules/.bin/prisma", "migrate", "deploy"]
+
 # Development server: source is bind-mounted by docker-compose.dev.yml
 FROM deps AS dev
 ENV NODE_ENV=development
