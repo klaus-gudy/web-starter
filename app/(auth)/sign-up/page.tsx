@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { Suspense } from "react";
 import { SignUpForm } from "./sign-up-form";
+import { RedirectIfSignedIn } from "@/components/redirect-if-signed-in";
 import { Skeleton } from "@/components/ui/skeleton";
 import { findOpenInvitation, invitationToken } from "@/lib/invitations";
 
@@ -26,14 +27,17 @@ async function SignUp({ searchParams }: Pick<PageProps<"/sign-up">, "searchParam
   const invitation = token ? await findOpenInvitation(token) : null;
 
   return (
-    <SignUpForm
-      invitation={
-        invitation && {
-          email: invitation.email,
-          organizationName: invitation.organization.name,
-          roleName: invitation.role.name,
+    <>
+      <RedirectIfSignedIn next={next} />
+      <SignUpForm
+        invitation={
+          invitation && {
+            email: invitation.email,
+            organizationName: invitation.organization.name,
+            roleName: invitation.role.name,
+          }
         }
-      }
-    />
+      />
+    </>
   );
 }
