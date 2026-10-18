@@ -6,7 +6,7 @@ services:
   web:
     build:
       target: dev
-    image: web-starter-dev
+    image: ${COMPOSE_PROJECT_NAME:-web-starter}-dev
     environment:
       NODE_ENV: development
     volumes:
@@ -24,7 +24,7 @@ services:
     build:
       context: .
       target: dev
-    image: web-starter-dev
+    image: ${COMPOSE_PROJECT_NAME:-web-starter}-dev
     profiles: [tools]
     env_file: .env
     environment:
