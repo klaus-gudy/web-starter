@@ -10,6 +10,7 @@ import {
   normalizeOrganizationName,
 } from "@/lib/organizations";
 import { safeNextPath } from "@/lib/next-path";
+import { clientIp, rateLimit, tooManyAttempts } from "@/lib/rate-limit";
 import { hashPassword, verifyNothing, verifyPassword } from "@/lib/password";
 import { getPrisma } from "@/lib/prisma";
 import { createSession, deleteSession } from "@/lib/session";
@@ -27,6 +28,36 @@ function field(formData: FormData, name: string) {
 async function fail(path: string, message: string): Promise<never> {
   await setFlash({ type: "error", message });
   redirect(path);
+}
+
+// Limits per window. Password checks are counted per email across login and
+// sign-up (which checks an existing account's password too), so guessing
+// one account's password stays slow whichever form is used.
+const LIMITS = {
+  passwordPerEmail: { limit: 10, windowSeconds: 15 * 60 },
+  loginPerIp: { limit: 50, windowSeconds: 15 * 60 },
+  signUpPerIp: { limit: 10, windowSeconds: 60 * 60 },
+  nameCheckPerIp: { limit: 30, windowSeconds: 10 * 60 },
+};
+
+/**
+ * Counts an attempt against each key and returns the "too many attempts"
+ * message if any is over its limit. Keys without an IP (no proxy header) are
+ * skipped rather than shared, so one visitor can't lock everyone out.
+ */
+async function checkLimits(
+  checks: { key: string | null; limit: number; windowSeconds: number }[]
+) {
+  for (const { key, limit, windowSeconds } of checks) {
+    if (!key) continue;
+    const result = await rateLimit(key, limit, windowSeconds);
+    if (!result.allowed) return tooManyAttempts(result.retryAfterSeconds);
+  }
+  return null;
+}
+
+function ipKey(scope: string, ip: string | null) {
+  return ip ? `${scope}:ip:${ip}` : null;
 }
 
 function nextPath(formData: FormData) {
@@ -47,6 +78,10 @@ export async function checkOrganizationName(
 ): Promise<OrganizationCheck> {
   const name = normalizeOrganizationName(field(formData, "organization"));
   if (!name) return { message: "Enter your organization's name." };
+  const limited = await checkLimits([
+    { key: ipKey("name-check", await clientIp()), ...LIMITS.nameCheckPerIp },
+  ]);
+  if (limited) return { message: limited, name };
   if (await isOrganizationNameTaken(name)) {
     return { message: `${name} is already taken. Try another name.`, name };
   }
@@ -97,6 +132,12 @@ export async function signUp(
   if (password.length < MIN_PASSWORD || password.length > MAX_PASSWORD) {
     return error(`Use a password of at least ${MIN_PASSWORD} characters.`);
   }
+
+  const limited = await checkLimits([
+    { key: ipKey("sign-up", await clientIp()), ...LIMITS.signUpPerIp },
+    { key: `password:email:${email}`, ...LIMITS.passwordPerEmail },
+  ]);
+  if (limited) return error(limited);
 
   const invitation = token ? await findOpenInvitation(token) : null;
   if (token && !invitation) return gone;
@@ -192,6 +233,11 @@ export async function login(formData: FormData) {
   const back = formPath("/login", next);
 
   if (!email || !password) return fail(back, invalid);
+  const limited = await checkLimits([
+    { key: ipKey("login", await clientIp()), ...LIMITS.loginPerIp },
+    { key: `password:email:${email}`, ...LIMITS.passwordPerEmail },
+  ]);
+  if (limited) return fail(back, limited);
 
   const prisma = getPrisma();
   const user = await prisma.user.findUnique({
