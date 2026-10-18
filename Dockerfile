@@ -15,7 +15,7 @@ COPY prisma ./prisma
 COPY prisma.config.ts ./
 CMD ["node_modules/.bin/prisma", "migrate", "deploy"]
 
-# Development server: source is bind-mounted by docker-compose.dev.yml
+# Development server: source is bind-mounted by docker-compose.override.yml
 FROM deps AS dev
 ENV NODE_ENV=development
 EXPOSE 3000
