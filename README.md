@@ -1,39 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Web Starter
 
-## Getting Started
+A Next.js starter with Postgres, Prisma, email and password accounts, organizations with roles, and invitations. The app and its database run in Docker, in development too.
 
-The app and its Postgres database run in Docker, in development too. You need Docker and a `.env`:
+## Starting a project from this template
+
+Do these once, right after copying the template.
+
+1. **Install the tools:** Docker, and Node.js 24 with npm. Docker runs the app; Node is only needed on your machine for the Prisma commands (`npm run db:*`) and your editor.
+2. **Install dependencies on your machine:**
+
+   ```bash
+   npm install
+   ```
+
+3. **Create your `.env`:**
+
+   ```bash
+   cp .env.template .env
+   ```
+
+   Then edit it:
+   - `DB_PASSWORD`: replace `change-me`.
+   - `DB_PORT`: the port Postgres is published on for your machine. Change it if something else already uses 5432 (such as a local Postgres).
+   - `PORT` and `NEXT_PUBLIC_APP_URL`: change both together if port 3000 is taken. `NEXT_PUBLIC_APP_URL` is the address invitation links point to, so it must be the address people open.
+   - `DB_NAME`, `DB_USER`: optionally rename to your project.
+4. **Rename the project.** These still say `web-starter` or the create-next-app defaults:
+   - `name` in `package.json`.
+   - The `image:` names in `docker-compose.yml` (`web-starter`, `web-starter-migrate`) and `docker-compose.dev.yml` (`web-starter-dev`). Two projects with the same image names overwrite each other's images.
+   - `title` and `description` in `metadata` in `app/layout.tsx` (currently "Create Next App").
+   - The heading of this README, and `app/favicon.ico`.
+5. **Start it:**
+
+   ```bash
+   npm run dev
+   ```
+
+   The first start builds the images, creates the database, and applies all migrations; nothing else needs to run. Open the `NEXT_PUBLIC_APP_URL` address (http://localhost:3000 by default) and sign up: the first account creates the first organization and owns it.
+
+## Everyday commands
 
 ```bash
-cp .env.template .env
+npm run dev            # app + Postgres with hot reload; Ctrl+C to stop
+npm run dev:down       # remove the dev containers (data is kept)
+docker compose up --build   # run the production build locally
+docker compose down -v      # delete the containers and all data (fresh database)
 ```
 
-Then start the development server (Next.js dev server + Postgres, with hot reload):
+Edits under `app/`, `components/` and `lib/` reload automatically. You need to do something yourself in these cases:
 
-```bash
-npm run dev
-```
+- **After changing dependencies:** run `npm install`, then `npm run dev` again. It rebuilds the image and refreshes the container's `node_modules`.
+- **After changing `NEXT_PUBLIC_*` variables:** restart, and rebuild for production (`docker compose up --build`): they're baked in at build time.
+- **After adding or changing `instrumentation.ts`:** restart `npm run dev`; it's only loaded at startup.
+- **After editing `prisma/schema.prisma`:** with the app running, run `npm run db:migrate` in your own terminal (it asks for a migration name, so it needs an interactive terminal), then commit the new folder under `prisma/migrations`. Everyone else gets it applied automatically on their next start.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result. Edits under `app/`, `components/` and `lib/` reload automatically. Stop with Ctrl+C, or remove the containers with `npm run dev:down`.
+Database settings (`DB_*`, including `DB_SCHEMA`) come from `.env`. The Postgres schema named by `DB_SCHEMA` is created the first time the database volume is initialised. Both `npm run dev` and `docker compose up` start a one-off `migrate` service first, which runs `prisma migrate deploy`; the app starts only after it succeeds.
 
-After changing dependencies, run `npm install` and then `npm run dev` again: it rebuilds the image and refreshes the container's `node_modules`.
+## Before going to production
 
-To run the production build instead:
-
-```bash
-docker compose up --build
-```
-
-Database settings (`DB_*`, including `DB_SCHEMA`) come from `.env`. The Postgres schema is created the first time the database volume is initialised; `docker compose down -v` resets it, deleting all data.
-
-Both commands start a one-off `migrate` service first, which runs `prisma migrate deploy`; the app starts only after it succeeds. A fresh clone therefore gets its tables on the first start, and a deploy applies new migrations before the new app version runs.
+- **Build with the real address:** set `NEXT_PUBLIC_APP_URL` to the public URL before building the image.
+- **Use HTTPS:** in production the session cookie is `Secure`, so logging in only works over HTTPS (browsers make an exception for `localhost`).
+- **Put a reverse proxy in front** that sets `X-Forwarded-For` and strips any value the client sent. Rate limits and session IPs use it, and without such a proxy clients can fake their IP.
+- **Use a strong `DB_PASSWORD`**, and don't publish the database port publicly (remove `ports:` from the `db` service if nothing outside Docker needs it).
+- **Connect an email provider** in `lib/mailer.ts` if you want invitations emailed. Until then, people share invitation links themselves.
+- **Back up the `db-data` volume.** `docker compose down -v` deletes it.
 
 ## Database with Prisma
 
 Prisma connects with the same `DB_*` variables from `.env` (see `prisma.config.ts`), so there is no separate `DATABASE_URL`. Models go in `prisma/schema.prisma`; the app uses them through `getPrisma()` from `lib/prisma.ts`, which runs on the same `pg` pool as `query()`.
 
 ```bash
-npm run db:migrate    # create and apply a migration after editing the schema
+npm run db:migrate    # create and apply a migration after editing the schema (interactive)
 npm run db:generate   # regenerate the client into lib/generated/prisma
 npm run db:studio     # browse data at http://localhost:5555
 ```
@@ -62,20 +98,3 @@ Each server process runs `cleanUpExpired()` (`lib/cleanup.ts`) a minute after it
 ### Errors
 
 `app/(core)/error.tsx` handles errors in signed-in pages and keeps the sidebar; `app/error.tsx` covers the rest; `app/global-error.tsx` replaces the root layout if it fails; `app/not-found.tsx` is the 404 page for unknown URLs and `notFound()`.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
